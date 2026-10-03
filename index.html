@@ -122,7 +122,20 @@
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-  #adminBox {
+  /* ===== 관리자 전용 요소 =====
+     비밀번호를 통과하면 body에 is-admin 클래스가 붙고,
+     각 탭 안의 .admin-panel 과 [홈] 탭 버튼이 나타난다. */
+  .tab-btn { word-break: keep-all; }
+  .tab-btn.admin-only { display: none; }
+  body.is-admin .tab-btn.admin-only { display: block; }
+  .tab-btn.admin-only:not(.active) { background: transparent; border: 2px dashed var(--border); }
+
+  @media (max-width: 480px) {
+    body.is-admin .tabs { gap: 5px; }
+    body.is-admin .tab-btn { padding: 11px 2px; font-size: 0.86em; }
+  }
+
+  .admin-panel {
     background: #fdf2f4;
     border: 2px dashed var(--primary);
     padding: 15px;
@@ -130,12 +143,17 @@
     margin-bottom: 25px;
     display: none;
   }
-  #adminBox h4 { margin: 0 0 15px 0; color: var(--primary); font-size: 1.1em; border-bottom: 1px solid var(--border); padding-bottom: 10px;}
+  body.is-admin .admin-panel { display: block; }
+  .admin-panel h4 { margin: 0 0 15px 0; color: var(--primary); font-size: 1.1em; border-bottom: 1px solid var(--border); padding-bottom: 10px;}
+  .admin-toggle-row { display: flex; gap: 10px; margin-bottom: 15px; }
   .admin-section { margin-bottom: 15px; background: white; padding: 12px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+  .admin-section:last-child { margin-bottom: 0; }
   .admin-section h5 { margin: 0 0 8px 0; color: #555; }
 
   .form-group { display: flex; flex-direction: column; gap: 8px; }
   .form-row { display: flex; gap: 10px; align-items: center; }
+  /* 좁은 화면에서 입력칸이 줄어들지 않아 옆 버튼이 밖으로 밀려나는 것 방지 */
+  .form-row > input { min-width: 0; }
   .color-row { display: flex; gap: 15px; font-size: 0.9em; color: #555; margin-bottom: 5px; }
   .color-row label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
   input[type="color"] { width: 35px; height: 35px; padding: 0; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
@@ -153,6 +171,32 @@
   button.import-btn { background: #555; }
   button.sub-action-btn { background: #6c757d; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; transition: opacity 0.2s; }
   button.sub-action-btn:hover { opacity: 0.8; }
+  /* 입력칸 옆에 붙는 작은 저장 버튼 */
+  button.action-btn.inline { width: auto; flex-shrink: 0; padding: 10px 16px; }
+
+  /* ===== 업보 종류: 끌어서 순서 바꾸기 ===== */
+  #adminTypeList { position: relative; }
+  .type-row {
+    position: relative; gap: 6px; background: white;
+    border: 1px solid transparent; border-radius: 10px; padding: 3px 4px 3px 0;
+  }
+  .type-row.dragging {
+    z-index: 2; border-color: var(--primary);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+  }
+  .drag-handle {
+    flex-shrink: 0; width: 26px; height: 36px; padding: 0; border: none; border-radius: 6px;
+    background: none; color: #c4c4c4; cursor: grab; touch-action: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .drag-handle:hover { color: var(--primary); background: #fdf2f4; }
+  .drag-handle:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; color: var(--primary); }
+  #adminTypeList.is-sorting, #adminTypeList.is-sorting * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+  .type-hint { font-size: 0.78em; color: #999; margin-bottom: 8px; line-height: 1.5; }
+  .dirty-hint {
+    display: none; font-size: 0.8em; font-weight: 600; color: #b07d18; background: #fff0d6;
+    border-radius: 8px; padding: 7px 10px; margin-bottom: 8px;
+  }
 
   .toggle-btn {
     flex: 1; background: #eee; color: #888; border: 2px solid #ddd;
@@ -368,196 +412,134 @@
   </header>
 
   <div class="tabs">
+    <button class="tab-btn admin-only" data-tab="home" onclick="switchTab('home')">🏠 홈</button>
     <button class="tab-btn active" data-tab="songbook" onclick="switchTab('songbook')">🎵 노래책</button>
     <button class="tab-btn" data-tab="upbo" onclick="switchTab('upbo')">⚡ 업보</button>
     <button class="tab-btn" data-tab="survey" onclick="switchTab('survey')">📣 설문</button>
   </div>
 
-  <div id="adminBox">
-    <h4>🛠️ 관리자 설정 (나에게만 보임)</h4>
+  <!-- ===== [홈] 탭: 관리자에게만 보이는 메인 페이지 설정 ===== -->
+  <div id="tab_home" class="tab-content">
+    <div class="admin-panel">
+      <h4>🏠 홈 설정 (나에게만 보임)</h4>
 
-    <div class="admin-section">
-      <h5>🖼️ 상단 배너 · 프로필 이미지</h5>
+      <div class="admin-section">
+        <h5>🖼️ 상단 배너 · 프로필 이미지</h5>
 
-      <div class="form-group" style="margin-bottom: 18px;">
-        <div class="lyrics-header">
-          <span style="color: var(--primary);">배너 이미지</span>
-          <button type="button" class="btn-small" onclick="clearMedia('banner')">비우기</button>
-        </div>
-        <div class="media-preview" id="bannerPreview">미리보기</div>
-        <input type="text" id="mediaBannerUrl" placeholder="이미지 주소(URL) 붙여넣기">
-        <input type="file" id="mediaBannerFile" accept="image/*">
-        <div class="form-row">
-          <span style="font-size: 0.85em; color: #666; white-space: nowrap;">배너 높이</span>
-          <input type="number" id="mediaBannerHeight" min="80" max="420" step="10" placeholder="비우면 자동 (기본 비율)">
-          <span style="font-size: 0.85em; color: #999;">px</span>
-        </div>
-      </div>
-
-      <div class="form-group" style="margin-bottom: 14px;">
-        <div class="lyrics-header">
-          <span style="color: var(--primary);">프로필 이미지</span>
-          <button type="button" class="btn-small" onclick="clearMedia('profile')">비우기</button>
-        </div>
-        <div class="media-preview round" id="profilePreview">미리보기</div>
-        <input type="text" id="mediaProfileUrl" placeholder="이미지 주소(URL) 붙여넣기">
-        <input type="file" id="mediaProfileFile" accept="image/*">
-      </div>
-
-      <button class="action-btn" onclick="saveMedia()">이미지 저장하기</button>
-
-      <div class="media-hint" style="margin-top: 10px;">
-        · URL을 넣으면 그 주소를 그대로 씁니다. 파일을 고르면 파일이 우선 적용됩니다.<br>
-        · GIF는 움직임을 살리려고 원본 그대로 저장하니 <b>1MB 이하</b> 파일을 권장합니다.<br>
-        · 일반 사진(JPG·PNG)은 자동으로 크기를 줄여 저장합니다.
-      </div>
-    </div>
-
-    <div class="admin-section">
-      <h5>📣 설문조사 관리 (3페이지)</h5>
-
-      <div style="display: flex; gap: 10px; margin-bottom: 18px;">
-        <button type="button" id="btnToggleSurvey" class="toggle-btn" onclick="toggleSurvey()">✅ 설문 페이지 ON</button>
-      </div>
-
-      <div id="adminSurveyArea">
-        <div class="lyrics-header" style="margin-bottom: 6px;">
-          <span style="color: var(--primary);">➕ 새 설문 만들기</span>
-        </div>
-        <input type="text" id="newSurveyTitle" placeholder="설문 제목 (예: 방송 일주일간 느낀 점)" style="width:100%; margin-bottom:8px;">
-        <input type="text" id="newSurveyDesc" placeholder="안내 문구 (선택)" style="width:100%; margin-bottom:8px;">
-
-        <div class="lyrics-header" style="margin-bottom: 6px;">
-          <span>질문 목록</span>
-          <button type="button" class="btn-small" onclick="addQuestionRow()">➕ 질문 추가</button>
-        </div>
-        <div id="newQuestionList" class="memo-list"></div>
-        <button class="action-btn" style="margin-bottom: 22px;" onclick="createSurvey()">설문 등록하기</button>
-
-        <div class="lyrics-header" style="margin-bottom: 6px;">
-          <span style="color: var(--primary);">📋 등록된 설문 · 답변 확인</span>
-        </div>
-        <div id="adminSurveyList"></div>
-      </div>
-    </div>
-
-    <div class="admin-section">
-      <h5>⚡ 업보 관리 (2페이지)</h5>
-
-      <div style="display: flex; gap: 10px; margin-bottom: 18px;">
-        <button type="button" id="btnToggleUpbo" class="toggle-btn" onclick="toggleUpbo()">✅ 업보 페이지 ON</button>
-      </div>
-
-      <div id="adminUpboArea">
-        <div class="lyrics-header" style="margin-bottom: 6px;">
-          <span style="color: var(--primary);">📋 업보 종류</span>
-          <button type="button" class="btn-small" onclick="addUpboTypeRow()">➕ 종류 추가</button>
-        </div>
-        <div id="adminTypeList" class="memo-list"></div>
-        <button class="action-btn" style="margin-bottom: 22px;" onclick="saveUpboTypes()">업보 종류 저장하기</button>
-
-        <div class="lyrics-header" style="margin-bottom: 6px;">
-          <span style="color: var(--primary);">🙋 시청자 등록</span>
-        </div>
-        <div class="form-row" style="margin-bottom: 8px;">
-          <input type="text" id="newViewerNick" placeholder="닉네임" style="flex: 0.5;">
-          <input type="text" id="newViewerId" placeholder="플랫폼 아이디 (선택)" style="flex: 0.5;">
-        </div>
-        <div class="form-row" style="margin-bottom: 8px;">
-          <input type="text" id="newViewerAvatar" placeholder="프로필 사진 URL (비워두면 아이디로 자동)">
-        </div>
-        <button class="action-btn" style="margin-bottom: 10px;" onclick="addViewer()">시청자 추가하기</button>
-        <div style="font-size: 0.8em; color: #888; line-height: 1.5;">
-          플랫폼을 고르면 아이디만으로 프로필 사진을 가져옵니다.
-          <div class="form-row" style="margin-top: 6px;">
-            <select id="settingAvatarSource" class="sort-select" style="width: 100%;">
-              <option value="soop">SOOP (숲)</option>
-              <option value="none">사용 안 함 (URL 직접 입력)</option>
-            </select>
+        <div class="form-group" style="margin-bottom: 18px;">
+          <div class="lyrics-header">
+            <span style="color: var(--primary);">배너 이미지</span>
+            <button type="button" class="btn-small" onclick="clearMedia('banner')">비우기</button>
           </div>
-        </div>
-        <div style="font-size: 0.8em; color: #888; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border);">
-          업보 횟수는 <b>업보 탭에서 시청자 카드를 눌러</b> ➖ ➕ 로 조절할 수 있어요.
-        </div>
-      </div>
-    </div>
-
-    <div class="admin-section">
-      <h5>📁 엑셀(CSV) 파일로 노래 한 번에 등록</h5>
-      <div class="form-group">
-        <input type="file" id="csvFileInput" accept=".csv">
-        <button class="action-btn import-btn" onclick="importCSV()">파일 불러오기</button>
-      </div>
-    </div>
-
-    <div class="admin-section">
-      <h5>🎵 새 노래 개별 추가</h5>
-      <div class="form-group">
-        <div class="form-row">
-          <input type="text" id="newTitle" placeholder="곡명">
-          <input type="text" id="newArtist" placeholder="가수">
-        </div>
-        <div class="form-row">
-          <input type="text" id="newGenre" placeholder="장르 (예: J-POP)" style="flex: 1;">
-          <select id="newDifficulty" style="flex: 1;">
-            <option value="1">★ 난이도 1</option>
-            <option value="2">★★ 난이도 2</option>
-            <option value="3" selected>★★★ 난이도 3</option>
-            <option value="4">★★★★ 난이도 4</option>
-            <option value="5">★★★★★ 난이도 5</option>
-          </select>
-        </div>
-
-        <div style="background: #f9f9f9; padding: 10px; border-radius: 8px; border: 1px solid #eee;">
-          <div class="lyrics-header" style="margin-bottom: 6px;">
-            <span>🖼️ 앨범 자켓 사진 선택</span>
-            <button type="button" class="btn-small btn-lyrics" onclick="searchNewAlbumArtOptions()">🔍 자켓 사진 후보 찾기</button>
-          </div>
-          <input type="hidden" id="newAlbumArtUrl" value="">
-          <div id="newArtOptionsContainer" class="art-grid">
-            <div style="grid-column: span 3; text-align: center; color: #888; font-size: 0.85em; padding: 10px;">곡명과 가수 입력 후 버튼을 눌러보세요!</div>
+          <div class="media-preview" id="bannerPreview">미리보기</div>
+          <input type="text" id="mediaBannerUrl" placeholder="이미지 주소(URL) 붙여넣기">
+          <input type="file" id="mediaBannerFile" accept="image/*">
+          <div class="form-row">
+            <span style="font-size: 0.85em; color: #666; white-space: nowrap;">배너 높이</span>
+            <input type="number" id="mediaBannerHeight" min="80" max="420" step="10" placeholder="비우면 자동 (기본 비율)">
+            <span style="font-size: 0.85em; color: #999;">px</span>
           </div>
         </div>
 
-        <div class="lyrics-header" style="margin-top: 5px;">
-          <span>📝 메모</span>
-          <button type="button" class="btn-small" onclick="addMemoRow('newMemoList')">➕ 메모 칸 추가</button>
-        </div>
-        <div id="newMemoList" class="memo-list">
-          <div class="form-row memo-row">
-            <input type="text" class="memo-label" placeholder="이름(예: MR)">
-            <input type="text" class="memo-content" placeholder="메모 내용">
-            <button type="button" class="btn-small" onclick="this.parentElement.remove()">❌</button>
+        <div class="form-group" style="margin-bottom: 14px;">
+          <div class="lyrics-header">
+            <span style="color: var(--primary);">프로필 이미지</span>
+            <button type="button" class="btn-small" onclick="clearMedia('profile')">비우기</button>
           </div>
+          <div class="media-preview round" id="profilePreview">미리보기</div>
+          <input type="text" id="mediaProfileUrl" placeholder="이미지 주소(URL) 붙여넣기">
+          <input type="file" id="mediaProfileFile" accept="image/*">
         </div>
 
-        <div class="lyrics-header">
-          <span>📝 가사</span>
-          <button type="button" class="btn-small btn-lyrics" onclick="searchLyricsOnNaver('newTitle', 'newArtist')">🔍 네이버에서 찾기</button>
-        </div>
-        <textarea id="newLyrics" placeholder="버튼을 눌러 찾은 가사를 붙여넣으세요"></textarea>
+        <button class="action-btn" onclick="saveMedia()">이미지 저장하기</button>
 
-        <button class="action-btn" onclick="addNewSong()">목록에 추가하기</button>
+        <div class="media-hint" style="margin-top: 10px;">
+          · URL을 넣으면 그 주소를 그대로 씁니다. 파일을 고르면 파일이 우선 적용됩니다.<br>
+          · GIF는 움직임을 살리려고 원본 그대로 저장하니 <b>1MB 이하</b> 파일을 권장합니다.<br>
+          · 일반 사진(JPG·PNG)은 자동으로 크기를 줄여 저장합니다.
+        </div>
       </div>
-    </div>
 
-    <div class="admin-section">
-      <h5>🎨 페이지 디자인 & 비밀번호 설정</h5>
-      <div class="form-group">
-        <div class="color-row">
-          <label>포인트 색: <input type="color" id="settingPrimaryColor"></label>
-          <label>배경 색: <input type="color" id="settingBgColor"></label>
+      <div class="admin-section">
+        <h5>🎨 페이지 디자인 & 비밀번호</h5>
+        <div class="form-group">
+          <div class="color-row">
+            <label>포인트 색: <input type="color" id="settingPrimaryColor"></label>
+            <label>배경 색: <input type="color" id="settingBgColor"></label>
+          </div>
+          <input type="text" id="settingTitle" placeholder="메인 제목 입력">
+          <input type="text" id="settingPassword" placeholder="새 관리자 비밀번호">
+          <button class="action-btn" onclick="savePageSettings()">설정 적용하기</button>
         </div>
-        <input type="text" id="settingTitle" placeholder="메인 제목 입력">
-        <input type="text" id="settingUpboDesc" placeholder="업보 페이지 안내 문구">
-        <input type="text" id="settingSurveyDesc" placeholder="설문 페이지 안내 문구">
-        <input type="text" id="settingPassword" placeholder="새 관리자 비밀번호">
-        <button class="action-btn" onclick="savePageSettings()">설정 적용하기</button>
       </div>
     </div>
   </div>
 
+  <!-- ===== 노래책 탭 ===== -->
   <div id="tab_songbook" class="tab-content active">
+    <div class="admin-panel">
+      <h4>🛠️ 노래책 관리 (나에게만 보임)</h4>
+
+      <div class="admin-section">
+        <h5>📁 엑셀(CSV) 파일로 노래 한 번에 등록</h5>
+        <div class="form-group">
+          <input type="file" id="csvFileInput" accept=".csv">
+          <button class="action-btn import-btn" onclick="importCSV()">파일 불러오기</button>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h5>🎵 새 노래 개별 추가</h5>
+        <div class="form-group">
+          <div class="form-row">
+            <input type="text" id="newTitle" placeholder="곡명">
+            <input type="text" id="newArtist" placeholder="가수">
+          </div>
+          <div class="form-row">
+            <input type="text" id="newGenre" placeholder="장르 (예: J-POP)" style="flex: 1;">
+            <select id="newDifficulty" style="flex: 1;">
+              <option value="1">★ 난이도 1</option>
+              <option value="2">★★ 난이도 2</option>
+              <option value="3" selected>★★★ 난이도 3</option>
+              <option value="4">★★★★ 난이도 4</option>
+              <option value="5">★★★★★ 난이도 5</option>
+            </select>
+          </div>
+
+          <div style="background: #f9f9f9; padding: 10px; border-radius: 8px; border: 1px solid #eee;">
+            <div class="lyrics-header" style="margin-bottom: 6px;">
+              <span>🖼️ 앨범 자켓 사진 선택</span>
+              <button type="button" class="btn-small btn-lyrics" onclick="searchNewAlbumArtOptions()">🔍 자켓 사진 후보 찾기</button>
+            </div>
+            <input type="hidden" id="newAlbumArtUrl" value="">
+            <div id="newArtOptionsContainer" class="art-grid">
+              <div style="grid-column: span 3; text-align: center; color: #888; font-size: 0.85em; padding: 10px;">곡명과 가수 입력 후 버튼을 눌러보세요!</div>
+            </div>
+          </div>
+
+          <div class="lyrics-header" style="margin-top: 5px;">
+            <span>📝 메모</span>
+            <button type="button" class="btn-small" onclick="addMemoRow('newMemoList')">➕ 메모 칸 추가</button>
+          </div>
+          <div id="newMemoList" class="memo-list">
+            <div class="form-row memo-row">
+              <input type="text" class="memo-label" placeholder="이름(예: MR)">
+              <input type="text" class="memo-content" placeholder="메모 내용">
+              <button type="button" class="btn-small" onclick="this.parentElement.remove()">❌</button>
+            </div>
+          </div>
+
+          <div class="lyrics-header">
+            <span>📝 가사</span>
+            <button type="button" class="btn-small btn-lyrics" onclick="searchLyricsOnNaver('newTitle', 'newArtist')">🔍 네이버에서 찾기</button>
+          </div>
+          <textarea id="newLyrics" placeholder="버튼을 눌러 찾은 가사를 붙여넣으세요"></textarea>
+
+          <button class="action-btn" onclick="addNewSong()">목록에 추가하기</button>
+        </div>
+      </div>
+    </div>
+
     <div class="controls">
       <div class="form-row">
         <input type="text" id="searchInput" class="search" placeholder="⌕ 곡명 또는 가수 검색...">
@@ -580,7 +562,61 @@
     </div>
   </div>
 
+  <!-- ===== 업보 탭 ===== -->
   <div id="tab_upbo" class="tab-content">
+    <div class="admin-panel">
+      <h4>🛠️ 업보 관리 (나에게만 보임)</h4>
+
+      <div class="admin-toggle-row">
+        <button type="button" id="btnToggleUpbo" class="toggle-btn" onclick="toggleUpbo()">✅ 업보 페이지 ON</button>
+      </div>
+
+      <div id="adminUpboArea">
+        <div class="admin-section">
+          <h5>💬 안내 문구</h5>
+          <div class="form-row">
+            <input type="text" id="settingUpboDesc" placeholder="업보 페이지 안내 문구">
+            <button type="button" class="action-btn inline" onclick="saveTabDesc('upbo')">저장</button>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <div class="lyrics-header" style="margin-bottom: 4px;">
+            <h5 style="margin: 0;">📋 업보 종류</h5>
+            <button type="button" class="btn-small" onclick="addUpboTypeRowByUser()">➕ 종류 추가</button>
+          </div>
+          <div class="type-hint">왼쪽 손잡이를 끌어 순서를 바꿀 수 있어요. 이 순서대로 업보 창에 보여요.</div>
+          <div id="adminTypeList" class="memo-list"></div>
+          <div class="dirty-hint" id="typeDirtyHint">바뀐 내용이 아직 저장되지 않았어요.</div>
+          <button class="action-btn" onclick="saveUpboTypes()">업보 종류 저장하기</button>
+        </div>
+
+        <div class="admin-section">
+          <h5>🙋 시청자 등록</h5>
+          <div class="form-row" style="margin-bottom: 8px;">
+            <input type="text" id="newViewerNick" placeholder="닉네임" style="flex: 0.5;">
+            <input type="text" id="newViewerId" placeholder="플랫폼 아이디 (선택)" style="flex: 0.5;">
+          </div>
+          <div class="form-row" style="margin-bottom: 8px;">
+            <input type="text" id="newViewerAvatar" placeholder="프로필 사진 URL (비워두면 아이디로 자동)">
+          </div>
+          <button class="action-btn" style="margin-bottom: 10px;" onclick="addViewer()">시청자 추가하기</button>
+          <div style="font-size: 0.8em; color: #888; line-height: 1.5;">
+            플랫폼을 고르면 아이디만으로 프로필 사진을 가져옵니다.
+            <div class="form-row" style="margin-top: 6px;">
+              <select id="settingAvatarSource" class="sort-select" style="width: 100%;">
+                <option value="soop">SOOP (숲)</option>
+                <option value="none">사용 안 함 (URL 직접 입력)</option>
+              </select>
+            </div>
+          </div>
+          <div style="font-size: 0.8em; color: #888; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border);">
+            업보 횟수는 <b>아래 시청자 카드를 눌러</b> ➖ ➕ 로 조절할 수 있어요.
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="upboWrapper">
       <div class="section-title">⚡ 업보 현황</div>
       <p id="upboDescDisplay" style="color:#666; font-size:0.9em; margin:-6px 0 16px; line-height:1.5;"></p>
@@ -610,7 +646,44 @@
     </div>
   </div>
 
+  <!-- ===== 설문 탭 ===== -->
   <div id="tab_survey" class="tab-content">
+    <div class="admin-panel">
+      <h4>🛠️ 설문 관리 (나에게만 보임)</h4>
+
+      <div class="admin-toggle-row">
+        <button type="button" id="btnToggleSurvey" class="toggle-btn" onclick="toggleSurvey()">✅ 설문 페이지 ON</button>
+      </div>
+
+      <div id="adminSurveyArea">
+        <div class="admin-section">
+          <h5>💬 안내 문구</h5>
+          <div class="form-row">
+            <input type="text" id="settingSurveyDesc" placeholder="설문 페이지 안내 문구">
+            <button type="button" class="action-btn inline" onclick="saveTabDesc('survey')">저장</button>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <h5>➕ 새 설문 만들기</h5>
+          <input type="text" id="newSurveyTitle" placeholder="설문 제목 (예: 방송 일주일간 느낀 점)" style="width:100%; margin-bottom:8px;">
+          <input type="text" id="newSurveyDesc" placeholder="안내 문구 (선택)" style="width:100%; margin-bottom:8px;">
+
+          <div class="lyrics-header" style="margin-bottom: 6px;">
+            <span>질문 목록</span>
+            <button type="button" class="btn-small" onclick="addQuestionRow()">➕ 질문 추가</button>
+          </div>
+          <div id="newQuestionList" class="memo-list"></div>
+          <button class="action-btn" onclick="createSurvey()">설문 등록하기</button>
+        </div>
+
+        <div class="admin-section">
+          <h5>📋 등록된 설문 · 답변 확인</h5>
+          <div id="adminSurveyList"></div>
+        </div>
+      </div>
+    </div>
+
     <div id="surveyWrapper">
       <div class="section-title">📣 설문 조사</div>
       <p id="surveyDescDisplay" style="color:#666; font-size:0.9em; margin:-6px 0 16px; line-height:1.5;"></p>
@@ -984,7 +1057,8 @@
         const passwordInput = prompt("관리자 비밀번호를 입력하세요");
         if (passwordInput === pageInfo.password) {
           isAdminAuthenticated = true;
-          document.getElementById('adminBox').style.display = 'block';
+          // 각 탭의 관리자 패널과 [홈] 탭이 나타난다
+          document.body.classList.add('is-admin');
           fillMediaForm();
           db.ref('streamerData/responses').on('value', (snap) => {
             responses = snap.val() || {};
@@ -1395,28 +1469,60 @@
     document.getElementById('adminUpboArea').style.display = currentUseUpbo ? 'block' : 'none';
   }
 
+  const DRAG_HANDLE_SVG = `<svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true" fill="currentColor">
+    <circle cx="2.5" cy="2.5" r="1.6"/><circle cx="7.5" cy="2.5" r="1.6"/>
+    <circle cx="2.5" cy="8" r="1.6"/><circle cx="7.5" cy="8" r="1.6"/>
+    <circle cx="2.5" cy="13.5" r="1.6"/><circle cx="7.5" cy="13.5" r="1.6"/></svg>`;
+
   function addUpboTypeRow(id = "", name = "", isEvent = false) {
     const container = document.getElementById('adminTypeList');
     const row = document.createElement("div");
     row.className = "form-row memo-row type-row";
     row.dataset.typeId = id || ("t" + Date.now() + Math.floor(Math.random() * 1000));
     row.innerHTML = `
+      <button type="button" class="drag-handle" title="끌어서 순서 바꾸기" aria-label="순서 바꾸기 (끌거나 위·아래 화살표 키)">${DRAG_HANDLE_SVG}</button>
       <input type="text" class="type-name" placeholder="업보 이름 (예: 방셀 A)" value="${esc(name)}">
       <label style="font-size:0.85em; display:flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap; color:#555;">
         <input type="checkbox" class="type-event" ${isEvent ? 'checked' : ''}> 이벤트
       </label>
-      <button type="button" class="btn-small" onclick="this.parentElement.remove()">❌</button>
+      <button type="button" class="btn-small" onclick="removeUpboTypeRow(this)">❌</button>
     `;
     container.appendChild(row);
+    return row;
+  }
+
+  // ➕ 종류 추가 버튼
+  function addUpboTypeRowByUser() {
+    const row = addUpboTypeRow();
+    row.querySelector('.type-name').focus();
+    markTypeListDirty();
+  }
+
+  function removeUpboTypeRow(btn) {
+    btn.closest('.type-row').remove();
+    markTypeListDirty();
+  }
+
+  // 저장하지 않은 변경(이름·순서·추가·삭제)이 있으면, 실시간 갱신이 와도 목록을 다시 그리지 않는다
+  let typeListDirty = false;
+  function markTypeListDirty() {
+    typeListDirty = true;
+    document.getElementById('typeDirtyHint').style.display = 'block';
+  }
+  function clearTypeListDirty() {
+    typeListDirty = false;
+    document.getElementById('typeDirtyHint').style.display = 'none';
   }
 
   function renderAdminUpbo() {
     renderAdminUpboToggle();
+    document.getElementById('settingAvatarSource').value = pageInfo.avatarSource || "soop";
+    if (typeDrag || typeListDirty) return;
+
     const container = document.getElementById('adminTypeList');
     container.innerHTML = '';
     upboTypes.forEach(t => addUpboTypeRow(t.id, t.name, t.isEvent));
     if (upboTypes.length === 0) addUpboTypeRow();
-    document.getElementById('settingAvatarSource').value = pageInfo.avatarSource || "soop";
   }
 
   function saveUpboTypes() {
@@ -1435,11 +1541,140 @@
     });
 
     upboTypes = newTypes;
-    pageInfo.avatarSource = document.getElementById('settingAvatarSource').value;
+    clearTypeListDirty();   // 저장 직후 들어오는 갱신으로 목록을 새로 그리도록 먼저 해제
     saveUpboToFirebase();
-    saveToFirebase();
     showToast("업보 종류를 저장했습니다");
   }
+
+  // 프로필 사진 가져오기 방식은 고르는 즉시 저장
+  document.getElementById('settingAvatarSource').addEventListener('change', (e) => {
+    pageInfo.avatarSource = e.target.value;
+    db.ref('streamerData/pageInfo/avatarSource').set(e.target.value)
+      .then(() => showToast("프로필 사진 설정을 저장했습니다"))
+      .catch(() => alert("저장에 실패했습니다. 잠시 후 다시 시도해주세요."));
+  });
+
+  // ===== 업보 종류: 끌어서 순서 바꾸기 =====
+  // 왼쪽 손잡이를 잡고 위아래로 끌면 순서가 바뀐다 (마우스·터치 모두).
+  // 키보드: 손잡이에 포커스를 두고 ↑ / ↓ 키로 한 칸씩 이동.
+  const typeListEl = document.getElementById('adminTypeList');
+  let typeDrag = null;
+
+  // row 를 beforeNode 바로 앞(null 이면 맨 끝)으로 옮긴다.
+  // 끌고 있는 행을 DOM에서 떼어내면 포인터 캡처와 터치가 끊기므로,
+  // 행 자체는 그대로 두고 주변 행들을 위·아래로 넘겨서 같은 순서를 만든다.
+  function moveTypeRow(row, beforeNode) {
+    const all = [...typeListEl.children];
+    const others = all.filter(r => r !== row);
+    const tops = new Map(all.map(r => [r, r.offsetTop]));
+
+    const target = beforeNode ? others.indexOf(beforeNode) : others.length;
+    let idx = all.indexOf(row);
+    while (idx < target) { typeListEl.insertBefore(row.nextElementSibling, row); idx++; }
+    while (idx > target) { typeListEl.insertBefore(row.previousElementSibling, row.nextElementSibling); idx--; }
+
+    // 자리가 바뀐 행들이 새 자리로 미끄러지듯 이동 (FLIP). 끌고 있는 행은 포인터를 따라가므로 제외
+    all.filter(r => !typeDrag || r !== typeDrag.row).forEach(r => {
+      const d = tops.get(r) - r.offsetTop;
+      if (!d) return;
+      r.style.transition = 'none';
+      r.style.transform = `translateY(${d}px)`;
+      r.getBoundingClientRect();
+      r.style.transition = 'transform 0.15s ease';
+      r.style.transform = '';
+    });
+  }
+
+  function updateTypeDrag(clientY) {
+    const d = typeDrag;
+    if (!d) return;
+    d.lastY = clientY;
+
+    const listTop = typeListEl.getBoundingClientRect().top;
+    const h = d.row.offsetHeight;
+    const rawTop = clientY - d.grabOffset;
+    const center = rawTop + h / 2;   // 순서 판단은 실제 포인터 위치로 (목록 밖으로 끌면 맨 위/맨 아래)
+    // 화면에 보이는 행은 목록 바깥으로 나가지 않게
+    const top = Math.max(listTop, Math.min(listTop + typeListEl.offsetHeight - h, rawTop));
+
+    let beforeNode = null;
+    for (const sib of typeListEl.children) {
+      if (sib === d.row) continue;
+      if (center < listTop + sib.offsetTop + sib.offsetHeight / 2) { beforeNode = sib; break; }
+    }
+    if (beforeNode !== d.row.nextElementSibling) moveTypeRow(d.row, beforeNode);
+
+    d.row.style.transform = `translateY(${top - (listTop + d.row.offsetTop)}px)`;
+  }
+
+  // 화면 위·아래 끝 가까이 끌고 가면 자동으로 스크롤
+  function typeDragAutoScroll() {
+    const d = typeDrag;
+    if (!d) return;
+    const edge = 60, vh = window.innerHeight;
+    let v = 0;
+    if (d.lastY < edge) v = -Math.ceil((edge - d.lastY) / 5);
+    else if (d.lastY > vh - edge) v = Math.ceil((d.lastY - (vh - edge)) / 5);
+    if (v) { window.scrollBy(0, v); updateTypeDrag(d.lastY); }
+    d.raf = requestAnimationFrame(typeDragAutoScroll);
+  }
+
+  typeListEl.addEventListener('pointerdown', (e) => {
+    const handle = e.target.closest('.drag-handle');
+    if (!handle || typeDrag) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+
+    const row = handle.closest('.type-row');
+    handle.setPointerCapture(e.pointerId);
+    typeDrag = {
+      row, pointerId: e.pointerId,
+      grabOffset: e.clientY - row.getBoundingClientRect().top,
+      lastY: e.clientY,
+      startIndex: [...typeListEl.children].indexOf(row),
+      raf: 0
+    };
+    row.style.transition = 'none';
+    row.classList.add('dragging');
+    typeListEl.classList.add('is-sorting');
+    typeDrag.raf = requestAnimationFrame(typeDragAutoScroll);
+  });
+
+  typeListEl.addEventListener('pointermove', (e) => {
+    if (typeDrag && e.pointerId === typeDrag.pointerId) updateTypeDrag(e.clientY);
+  });
+
+  function endTypeDrag(e) {
+    const d = typeDrag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    typeDrag = null;
+    cancelAnimationFrame(d.raf);
+
+    d.row.classList.remove('dragging');
+    d.row.style.transition = 'transform 0.15s ease';
+    d.row.style.transform = '';   // 제자리로 살짝 내려앉기
+    typeListEl.classList.remove('is-sorting');
+
+    if ([...typeListEl.children].indexOf(d.row) !== d.startIndex) markTypeListDirty();
+  }
+  typeListEl.addEventListener('pointerup', endTypeDrag);
+  typeListEl.addEventListener('pointercancel', endTypeDrag);
+  typeListEl.addEventListener('lostpointercapture', endTypeDrag);
+
+  typeListEl.addEventListener('keydown', (e) => {
+    const handle = e.target.closest('.drag-handle');
+    if (!handle || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    const row = handle.closest('.type-row');
+    if (e.key === 'ArrowUp' && row.previousElementSibling) moveTypeRow(row, row.previousElementSibling);
+    else if (e.key === 'ArrowDown' && row.nextElementSibling) moveTypeRow(row, row.nextElementSibling.nextElementSibling);
+    else return;
+    handle.focus();
+    markTypeListDirty();
+  });
+
+  // 이름을 고치거나 이벤트 체크를 바꿔도 '저장 안 됨' 표시
+  typeListEl.addEventListener('input', (e) => { if (!e.target.closest('.drag-handle')) markTypeListDirty(); });
 
   function addViewer() {
     const nickname = document.getElementById('newViewerNick').value.trim();
@@ -1626,10 +1861,19 @@
     }
   }
 
+  // 업보·설문 탭의 안내 문구는 각 탭의 관리자 패널에서 따로 저장한다
+  function saveTabDesc(which) {
+    const key = which === 'upbo' ? 'upboDesc' : 'surveyDesc';
+    const input = document.getElementById(which === 'upbo' ? 'settingUpboDesc' : 'settingSurveyDesc');
+    pageInfo[key] = input.value.trim();
+    db.ref('streamerData/pageInfo/' + key).set(pageInfo[key])
+      .then(() => showToast("안내 문구를 저장했습니다"))
+      .catch(() => alert("저장에 실패했습니다. 잠시 후 다시 시도해주세요."));
+  }
+
+  // [홈] 탭: 메인 제목 · 색 · 비밀번호
   function savePageSettings() {
     pageInfo.title = document.getElementById('settingTitle').value.trim();
-    pageInfo.upboDesc = document.getElementById('settingUpboDesc').value.trim();
-    pageInfo.surveyDesc = document.getElementById('settingSurveyDesc').value.trim();
     pageInfo.primaryColor = document.getElementById('settingPrimaryColor').value;
     pageInfo.bgColor = document.getElementById('settingBgColor').value;
 
